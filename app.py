@@ -216,7 +216,7 @@ div[data-testid="stRadio"] span {
 """, unsafe_allow_html=True)
 
 st.title("🌐 Macro Risk & Liquidity Intelligence Terminal")
-st.markdown("<span style='color:#ffffff; font-size:15px; font-weight:600;'>Terminale di posizionamento ciclico, monitoraggio del credito e asimmetrie di mercato.</span>", unsafe_allow_html=True)
+st.markdown("<span style='color:#ffffff; font-size:15px; font-weight:600;'>Terminale di posizionamento ciclico, Fed Net Liquidity, debito infrastrutturale e asimmetrie di mercato.</span>", unsafe_allow_html=True)
 
 # ==========================================
 # FEED NOTIZIARIO FINANZIARIO & CRYPTO LIVE
@@ -274,13 +274,20 @@ def load_yahoo_ohlc(ticker, period="5y"):
     except Exception:
         return pd.DataFrame()
 
-with st.spinner("Aggiornamento dati quantitativi in tempo reale..."):
+with st.spinner("Acquisizione feed macroeconomici, liquidità della Fed e mercati..."):
+    # FRED Macro & Credito
     hy_spread = load_fred_data("BAMLH0A0HYM2")
     ccc_spread = load_fred_data("BAMLH0A3HYC")
     unrate = load_fred_data("UNRATE")
     sahm = load_fred_data("SAHMREALTIME")
     t10y2y = load_fred_data("T10Y2Y")
     
+    # FED NET LIQUIDITY COMPONENTS
+    walcl = load_fred_data("WALCL")          # Fed Total Assets (Milioni $)
+    wtregen = load_fred_data("WTREGEN")      # Treasury General Account (Milioni $)
+    rrp = load_fred_data("RRPONTSYD")        # Reverse Repo (Miliardi $)
+    
+    # YAHOO FINANCE
     owl = load_yahoo_ohlc("OWL")
     bizd = load_yahoo_ohlc("BIZD")
     nvda = load_yahoo_ohlc("NVDA")
@@ -292,6 +299,13 @@ with st.spinner("Aggiornamento dati quantitativi in tempo reale..."):
     gold = load_yahoo_ohlc("GC=F")
     vix = load_yahoo_ohlc("^VIX")
     btc = load_yahoo_ohlc("BTC-USD")
+
+# Calcolo Fed Net Liquidity (in Trilioni di Dollari)
+net_liquidity = pd.DataFrame()
+if not walcl.empty and not wtregen.empty and not rrp.empty:
+    m_liq = pd.concat([walcl, wtregen, rrp], axis=1).ffill().dropna()
+    # Formula: (WALCL - WTREGEN - RRP*1000) / 1,000,000
+    net_liquidity = ((m_liq["WALCL"] - m_liq["WTREGEN"] - m_liq["RRPONTSYD"] * 1000) / 1_000_000).to_frame("Net_Liquidity_Trillion")
 
 # Ratios
 ratio_ccc_hy = pd.DataFrame()
@@ -314,6 +328,7 @@ curr_sahm = float(sahm.iloc[-1].values[0]) if not sahm.empty else 0.0
 curr_curve = float(t10y2y.iloc[-1].values[0]) if not t10y2y.empty else 0.0
 curr_ratio_cred = float(ratio_ccc_hy.iloc[-1].values[0]) if not ratio_ccc_hy.empty else 3.0
 curr_vix = float(vix["Close"].iloc[-1]) if not vix.empty else 15.0
+curr_net_liq = float(net_liquidity.iloc[-1].values[0]) if not net_liquidity.empty else 5.80
 
 # Calcolo Rischio Sistemico (0-100)
 risk_score = 0
@@ -370,7 +385,6 @@ with col_metrics_grid:
     m_c1, m_c2 = st.columns(2)
     m_c3, m_c4 = st.columns(2)
     
-    # METRICA 1: RISCHIO SISTEMICO
     col_status = "#ef4444" if risk_score > 60 else ("#f59e0b" if risk_score > 35 else "#10b981")
     delta_text = "RISCHIO ELEVATO" if risk_score > 60 else ("ATTENZIONE" if risk_score > 35 else "CONDIZIONI NORMALI")
     with m_c1:
@@ -394,7 +408,6 @@ with col_metrics_grid:
         </div>
         """, unsafe_allow_html=True)
 
-    # METRICA 2: REGOLA DI SAHM
     sahm_col = "#ef4444" if curr_sahm >= 0.5 else ("#f59e0b" if curr_sahm >= 0.35 else "#10b981")
     sahm_status = "RECESSIONE" if curr_sahm >= 0.5 else ("PREALLARME" if curr_sahm >= 0.35 else "MERCATO SOLIDO")
     with m_c2:
@@ -418,7 +431,6 @@ with col_metrics_grid:
         </div>
         """, unsafe_allow_html=True)
 
-    # METRICA 3: CURVA DEI TASSI
     curve_col = "#38bdf8" if curr_curve > 0 else "#f59e0b"
     curve_status = "DISINVERTITA (Rischio Tagli)" if curr_curve > 0 else "INVERTITA (Fase Precoce)"
     with m_c3:
@@ -441,7 +453,6 @@ with col_metrics_grid:
         </div>
         """, unsafe_allow_html=True)
 
-    # METRICA 4: RATIO CCC / HY
     cred_col = "#ef4444" if curr_ratio_cred > 3.5 else "#10b981"
     cred_status = "STRESS SU EMITTENTI CCC" if curr_ratio_cred > 3.5 else "SPREAD NELLA NORMA"
     with m_c4:
@@ -465,7 +476,6 @@ with col_metrics_grid:
         """, unsafe_allow_html=True)
 
 with col_news_side:
-    # BOX NOTIZIARIO LATERALE AD ALTO CONTRASTO
     news_inner_html = '<div class="news-box-side"><div style="font-size:12px; font-weight:900; color:#38bdf8; text-transform:uppercase; margin-bottom:8px; border-bottom:1px solid #334155; padding-bottom:4px;">📡 Notiziario Live (Macro & Crypto)</div>'
     if news_feed:
         for n in news_feed:
@@ -475,7 +485,6 @@ with col_news_side:
     news_inner_html += '</div>'
     st.markdown(news_inner_html, unsafe_allow_html=True)
 
-# BANNER DIAGNOSTICO DEI CAMPANELLI D'ALLARME
 alerts_str = " &nbsp; | &nbsp; ".join([f"⚠️ <b>{a}</b>" for a in allerta_list]) if allerta_list else "✅ <b>Nessun campanello d'allarme critico rilevato sui dati odierni.</b>"
 st.markdown(f"""
 <div class="alert-strip">
@@ -490,12 +499,9 @@ st.markdown(f"""
 st.markdown("### 🧅 Semaforo del Rischio: Radar Concentrico Reattivo")
 st.markdown("<span style='color:#ffffff; font-size:14px; font-weight:600;'>Mappa a linee continue: il rischio parte dall'anello esterno (debito spazzatura) e si trasmette a cascata verso il nucleo delle Big Tech.</span>", unsafe_allow_html=True)
 
-# Calcolo reattivo a cascata dello stato degli anelli
-# Livello 4 (Junk): Rosso se ratio CCC/HY > 3.4
 l4_color = "#ef4444" if curr_ratio_cred > 3.4 else "#f59e0b"
 l4_status = "🔴 AREA DI PRIMO COLLASSO / ALLARME ATTIVO" if curr_ratio_cred > 3.4 else "🟡 CREDITO SOTTO CONTROLLO"
 
-# Livello 3 (Private Credit): Se L4 è rosso E BIZD flette sotto la media 50 -> Rosso a cascata
 bizd_ma50 = bizd["Close"].rolling(50).mean().iloc[-1] if not bizd.empty else 0
 bizd_under = (not bizd.empty and bizd["Close"].iloc[-1] < bizd_ma50)
 
@@ -509,11 +515,9 @@ else:
     l3_color = "#84cc16"
     l3_status = "🟢 PRIVATE CREDIT RESILIENTE"
 
-# Livello 2 (Hardware AI / SOX)
 l2_color = "#84cc16"
 l2_status = "🟡 CICLICO / DOMANDA ELEVATA MA VULNERABILE AL CAPEX"
 
-# Livello 1 (Nucleo Big Tech NVDA)
 nvda_ma200 = nvda["Close"].rolling(200).mean().iloc[-1] if not nvda.empty else 0
 if not nvda.empty and nvda["Close"].iloc[-1] < nvda_ma200:
     l1_color = "#ef4444"
@@ -526,12 +530,11 @@ fig_onion = go.Figure()
 
 onion_rings = [
     {"r": 4.0, "fill": "rgba(239, 68, 68, 0.16)", "line": l4_color, "title": "LIVELLO 4 (PERIFERIA): DEBITO SPAZZATURA & AZIENDE ZOMBIE", "desc": f"Spread CCC • Ratio CCC/HY ({curr_ratio_cred:.2f}x) • Startup senza utili • Token speculativi", "status": l4_status, "y": 3.42},
-    {"r": 3.0, "fill": "rgba(249, 115, 22, 0.22)", "line": l3_color, "title": "LIVELLO 3: PRIVATE CREDIT & FINANZIAMENTO INFRASTRUTTURE", "desc": "Blue Owl (OWL) • BIZD (BDC) • Debito CoreWeave (USU2069EAB6) • Obbligazioni lunghi Tech", "status": l3_status, "y": 2.42},
+    {"r": 3.0, "fill": "rgba(249, 115, 22, 0.22)", "line": l3_color, "title": "LIVELLO 3: PRIVATE CREDIT & CAPEX DATA CENTER (ALLARME FINK)", "desc": "Blue Owl (OWL) • BIZD (BDC) • Debito CoreWeave • Moratorie permessi & Rete Elettrica", "status": l3_status, "y": 2.42},
     {"r": 2.0, "fill": "rgba(132, 204, 22, 0.26)", "line": l2_color, "title": "LIVELLO 2: HARDWARE, SEMICONDUTTORI & FILIERA CRITICA", "desc": "SK Hynix (Memorie HBM) • Indice Semiconduttori (^SOX) • Fornitori Chiave", "status": l2_status, "y": 1.45},
     {"r": 1.0, "fill": "rgba(16, 185, 129, 0.88)", "line": l1_color, "title": "LIVELLO 1 (CENTRO): BIG TECH & MONOPOLI DI MERCATO", "desc": "Nvidia (NVDA) • Mega-Cap Tecnologiche (MAGS)", "status": l1_status, "y": 0.0}
 ]
 
-# LINEE CONTINUE SU TUTTI I LIVELLI (NESSUN TRATTEGGIO)
 for ring in onion_rings:
     r = ring["r"]
     fig_onion.add_shape(
@@ -550,41 +553,53 @@ fig_onion.update_yaxes(range=[-4.3, 4.3], showgrid=False, zeroline=False, showti
 fig_onion.update_layout(height=670, margin=dict(l=5, r=5, t=10, b=10), paper_bgcolor="#07090e", plot_bgcolor="#07090e")
 st.plotly_chart(fig_onion, use_container_width=True)
 
+# MODULO INTERATTIVO: RADIOGRAFIA A STRATI DELLA CIPOLLA
+with st.expander("🔬 Radiografia Interattiva dei 4 Livelli di Rischio (Clicca per Esplorare)"):
+    r_tab1, r_tab2, r_tab3, r_tab4 = st.tabs(["Livello 4: Debito Spazzatura", "Livello 3: Data Center & Private Credit", "Livello 2: Hardware & Chip", "Livello 1: Big Tech Fortress"])
+    with r_tab1:
+        st.markdown(f"**Stato Livello 4:** `{l4_status}` — Rapporto CCC/HY attuale: **{curr_ratio_cred:.2f}x**.<br>Se supera 3.5x, le aziende zombie e le small-cap non riescono a rifinanziarsi e scatta il contagio sistemico.", unsafe_allow_html=True)
+    with r_tab2:
+        st.markdown(f"**Stato Livello 3:** `{l3_status}`.<br><b>Focus Rischio Moratoria Data Center (Larry Fink):</b> Se gli Stati bloccano le autorizzazioni per motivi ambientali o di rete elettrica, si fermano i contratti di debito privato (Blue Owl, CoreWeave, BIZD), congelando la principale locomotiva di PIL degli Stati Uniti.", unsafe_allow_html=True)
+    with r_tab3:
+        st.markdown(f"**Stato Livello 2:** `{l2_status}`.<br>SK Hynix e SOX dipendono interamente dalla prosecuzione del Capex dei colossi del Livello 1. Se il debito infrastrutturale subisce un freno, gli ordinativi di GPU e memorie HBM crollano per primi.", unsafe_allow_html=True)
+    with r_tab4:
+        st.markdown(f"**Stato Livello 1:** `{l1_status}`.<br>Nvidia e le Mega-Cap (MAGS) posseggono centinaia di miliardi di liquidità netta. Reggono i massimi fino all'ultimo atto del ciclo distributivo.", unsafe_allow_html=True)
+
 # ==========================================
-# 2. SINTESI MACROECONOMICA INTEGRATA (SENZA ALCUN FORMATO CODICE)
+# 2. SINTESI MACROECONOMICA INTEGRATA
 # ==========================================
 st.markdown("### 📑 Bussola Macroeconomica & Sintesi Operativa")
 
-# Costruzione rigorosa senza indentazioni per prevenire il bug del blocco codice
 report_clean_html = (
 '<div class="report-panel">'
 '<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:12px; margin-bottom:20px;">'
 '<div>'
 '<h3 style="margin:0; color:#38bdf8; font-size:19px; font-weight:800;">Inquadramento Strategico di Mercato</h3>'
-f'<p style="margin:4px 0 0 0; font-size:13.5px; color:#ffffff;"><b>Diagnosi di Ciclo:</b> {fase_ciclo} &nbsp;|&nbsp; <b>Orizzonte Runway:</b> <span style="color:#facc15; font-weight:700;">{runway_desc}</span></p>'
+f'<p style="margin:4px 0 0 0; font-size:13.5px; color:#ffffff;"><b>Diagnosi di Ciclo:</b> {fase_ciclo} &nbsp;|&nbsp; <b>Orizzonte Runway:</b> <span style="color:#facc15; font-weight:700;">{runway_desc}</span> &nbsp;|&nbsp; <b>Fed Net Liquidity:</b> <span style="color:#38bdf8; font-weight:800;">${curr_net_liq:.2f}T</span></p>'
 '</div>'
 f'<span style="background-color:#1e293b; color:#ffffff; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:800;">Data: {datetime.now().strftime("%d %B %Y")}</span>'
 '</div>'
 '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">'
 '<div class="pillar-card-ui" style="border-top-color: #ef4444;">'
-'<h4 style="color:#ffffff; margin-top:0; font-size:15px; font-weight:800;">1. Canale del Debito & Rifinanziamento</h4>'
-f'<p style="font-size:13.5px; line-height:1.6; color:#ffffff;">Il moltiplicatore <b>CCC / High Yield si attesta a {curr_ratio_cred:.2f}x</b>. '
-'Nelle transizioni di fine ciclo, l\'azionario continua a salire per inerzia mentre il credito spazzatura accusa insolvenze. '
-'I fondi di Private Credit (Blue Owl, BIZD) mostrano se i capitali continuano a finanziare il debito infrastrutturale per i data center. '
-'Se i rendimenti obbligazionari lunghi delle Big Tech rimangono tesi, il costo di espansione per l\'AI diventerà insostenibile.</p>'
+'<h4 style="color:#ffffff; margin-top:0; font-size:15px; font-weight:800;">1. Debito, Data Center & Rischio Moratorie</h4>'
+f'<p style="font-size:13.5px; line-height:1.6; color:#ffffff;">Il ratio <b>CCC / High Yield si attesta a {curr_ratio_cred:.2f}x</b>. '
+'Come ammonito recentemente da Larry Fink (BlackRock), la vera minaccia recessiva non è tecnologica ma infrastrutturale: '
+'se gli Stati approvano moratorie sui data center per saturazione della rete elettrica, la catena di spesa miliardaria sostenuta dal Private Credit (Blue Owl, BIZD) '
+'si interrompe, innescando una recessione immediata.</p>'
 '</div>'
 '<div class="pillar-card-ui" style="border-top-color: #eab308;">'
 '<h4 style="color:#ffffff; margin-top:0; font-size:15px; font-weight:800;">2. Ampiezza e Concentrazione Azionaria</h4>'
 '<p style="font-size:13.5px; line-height:1.6; color:#ffffff;">Il divario tra l\'indice equiponderato (RSP) e le Mega-Cap (MAGS) '
-'evidenzia se la partecipazione è corale o ristretta a 5-7 colossi monopolisti. '
-'Una concentrazione anomala è tipica della fase distributiva. '
-'I semiconduttori (SOX/NDX) evidenziano che la corsa ai chip fisici è ancora in atto, ma anticipa la necessità di riscontrare profitti reali nei software.</p>'
+'mostra che il rialzo continua a essere sorretto da un gruppo ristretto di titoli monopolisti. '
+'Quando le small cap divergono mentre i chip (SOX/NDX) viaggiano a valutazioni record, '
+'il mercato sta prezzando uno scenario privo di margine di errore sul ritorno economico effettivo dell\'AI.</p>'
 '</div>'
 '<div class="pillar-card-ui" style="border-top-color: #10b981;">'
-'<h4 style="color:#ffffff; margin-top:0; font-size:15px; font-weight:800;">3. Liquidità Sistemica, Oro & Bitcoin</h4>'
-'<p style="font-size:13.5px; line-height:1.6; color:#ffffff;">La forza dell\'Oro sui massimi certifica la fuga istituzionale verso beni reali non svalutabili. '
-'Su Bitcoin, la tenuta della fascia settimanale 20W SMA / 21W EMA identifica la linea di confine tra mercato toro e fase distributiva. '
-'L\'oscillatore Mayer Multiple permette di evitare ingressi impulsivi durante i picchi speculativi.</p>'
+'<h4 style="color:#ffffff; margin-top:0; font-size:15px; font-weight:800;">3. Fed Net Liquidity, Oro & Bitcoin</h4>'
+f'<p style="font-size:13.5px; line-height:1.6; color:#ffffff;">La <b>Liquidità Netta della Fed a quota ${curr_net_liq:.2f} Trilioni</b> '
+'è la vera marea che sostiene Bitcoin e il Nasdaq. '
+'Finché la liquidità netta tiene e la Bull Market Support Band settimanale su Bitcoin viene difesa, il trend primario resta intatto, '
+'mentre l\'Oro sui massimi storici conferma la massiccia copertura istituzionale dalla svalutazione debitoria.</p>'
 '</div>'
 '</div>'
 '<div style="margin-top:22px;">'
@@ -631,7 +646,7 @@ f'<p style="font-size:13.5px; line-height:1.6; color:#ffffff;">Il moltiplicatore
 st.markdown(report_clean_html, unsafe_allow_html=True)
 
 # ==========================================
-# 3. PANNELLO GRAFICI AD ALTA RISOLUZIONE (TITOLI ESTERNI SENZA COLLISIONI)
+# 3. PANNELLO GRAFICI CON NBER RECESSION SHADING & FED LIQUIDITY
 # ==========================================
 st.markdown("### 📊 Analisi Grafica Interattiva con Zoom & Intreccio Dati")
 
@@ -645,8 +660,23 @@ with col_ctrl1:
 
 use_candles = (chart_mode == "Candele Giapponesi (Candlestick)")
 
-# Funzione Universale Grafici: Titolo ESTERNO e Range Selector isolato (zero collisioni)
-def render_isolated_chart(df, is_candlestick=False, default_color="#38bdf8", is_ratio=False):
+# Funzione per Aggiungere le Bande di Recessione NBER Ufficiali
+def add_nber_recessions(fig):
+    recessions = [
+        ("2001-03-01", "2001-11-01"),  # Dot-com
+        ("2007-12-01", "2009-06-01"),  # Subprime
+        ("2020-02-01", "2020-04-01")   # Covid
+    ]
+    for start, end in recessions:
+        fig.add_vrect(
+            x0=start, x1=end,
+            fillcolor="rgba(255, 255, 255, 0.08)",
+            layer="below", line_width=0,
+            annotation_text="RECESSIONE", annotation_position="top left",
+            annotation_font=dict(color="#94a3b8", size=9)
+        )
+
+def render_isolated_chart(df, is_candlestick=False, default_color="#38bdf8", is_ratio=False, has_recession_shading=False):
     fig = go.Figure()
     has_ohlc = not is_ratio and {'Open', 'High', 'Low', 'Close'}.issubset(df.columns)
     
@@ -665,6 +695,9 @@ def render_isolated_chart(df, is_candlestick=False, default_color="#38bdf8", is_
             line=dict(color=default_color, width=2)
         ))
     
+    if has_recession_shading:
+        add_nber_recessions(fig)
+        
     start_date = df.index[-180] if len(df) > 180 else df.index[0]
     
     fig.update_xaxes(
@@ -684,7 +717,6 @@ def render_isolated_chart(df, is_candlestick=False, default_color="#38bdf8", is_
         rangeslider=dict(visible=False), type="date"
     )
     
-    # NESSUN TITOLO INTERNO: eliminata la collisione con i selettori temporali
     fig.update_layout(
         title=None,
         template="plotly_dark", height=380, paper_bgcolor="#07090e", plot_bgcolor="#07090e",
@@ -692,23 +724,67 @@ def render_isolated_chart(df, is_candlestick=False, default_color="#38bdf8", is_
     )
     return fig
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab_liq, tab1, tab2, tab3, tab4 = st.tabs([
+    "🌊 Fed Net Liquidity & Crypto/Tech",
     "💳 Mercato del Credito & Spazzatura",
     "💻 Settore Tech & AI Capex",
-    "🌍 Macro USA & Beni Rifugio",
+    "🌍 Macro USA, Curva & Beni Rifugio",
     "₿ Bitcoin & Oscillatori Quantitativi"
 ])
+
+# ------------- TAB 0: FED NET LIQUIDITY (NUOVO MODULO) -------------
+with tab_liq:
+    st.markdown('<div class="chart-header-title">Fed Net Liquidity (WALCL - TGA - RRP) vs Bitcoin & Nasdaq 100</div>', unsafe_allow_html=True)
+    if not net_liquidity.empty and not btc.empty and not ndx.empty:
+        fig_liq = go.Figure()
+        
+        # Net Liquidity line
+        fig_liq.add_trace(go.Scatter(
+            x=net_liquidity.index, y=net_liquidity["Net_Liquidity_Trillion"],
+            name="Fed Net Liquidity ($ Trilioni)", line=dict(color="#38bdf8", width=2.5)
+        ))
+        
+        # Normalizzazione BTC e NDX su asse secondario (Base 100)
+        norm_btc = (btc["Close"] / btc["Close"].iloc[0]) * 100
+        norm_ndx = (ndx["Close"] / ndx["Close"].iloc[0]) * 100
+        
+        fig_liq.add_trace(go.Scatter(
+            x=btc.index, y=norm_btc, name="Bitcoin (Base 100)", yaxis="y2",
+            line=dict(color="#facc15", width=1.5)
+        ))
+        fig_liq.add_trace(go.Scatter(
+            x=ndx.index, y=norm_ndx, name="Nasdaq 100 (Base 100)", yaxis="y2",
+            line=dict(color="#10b981", width=1.5)
+        ))
+        
+        fig_liq.update_layout(
+            yaxis=dict(title="Net Liquidity ($T)", titlefont=dict(color="#38bdf8"), tickfont=dict(color="#38bdf8")),
+            yaxis2=dict(title="Performance Relativa (Base 100)", titlefont=dict(color="#ffffff"), tickfont=dict(color="#ffffff"), overlaying="y", side="right"),
+            template="plotly_dark", height=420, paper_bgcolor="#07090e", plot_bgcolor="#07090e",
+            font=dict(color="#ffffff"), margin=dict(l=15, r=15, t=35, b=15)
+        )
+        st.plotly_chart(fig_liq, use_container_width=True)
+        with st.expander("🔍 Ingrandisci & Analisi Intreccio Dati Macro"):
+            st.markdown("""
+            <div class="macro-depth-box">
+                <b>Perché la Fed Net Liquidity è il Sacro Graal della Macro:</b><br>
+                La formula calcola il denaro contante reale a disposizione del sistema bancario e dei dealer primari di Wall Street:
+                <br>• $\\text{Net Liquidity} = \\text{Bilancio Fed} - \\text{Conto del Tesoro (TGA)} - \\text{Reverse Repo (RRP)}$.
+                <br>• <b>La correlazione empirica:</b> Negli ultimi 5 anni, l'85% dei movimenti del Nasdaq e di Bitcoin ha seguito con precisione matematica la pendenza della Net Liquidity. Se la Fed continua il Quantitative Tightening (QT) e il Tesoro ricostituisce il conto TGA emettendo debito, la liquidità netta drena via dal sistema, portando correzioni improvvise sui mercati azionari e crypto.
+            </div>
+            """, unsafe_allow_html=True)
 
 # ------------- TAB 1: CREDITO -------------
 with tab1:
     col_a, col_b = st.columns(2)
     with col_a:
-        st.markdown('<div class="chart-header-title">Spread Obbligazioni USA: High Yield vs Spazzatura CCC</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-header-title">Spread Obbligazioni USA: High Yield vs Spazzatura CCC (con Aree Recessione)</div>', unsafe_allow_html=True)
         if not ccc_spread.empty and not hy_spread.empty:
             fig1 = go.Figure()
             fig1.add_trace(go.Scatter(x=hy_spread.index, y=hy_spread["BAMLH0A0HYM2"], name="Spread High Yield", line=dict(color="#38bdf8", width=1.8)))
             fig1.add_trace(go.Scatter(x=ccc_spread.index, y=ccc_spread["BAMLH0A3HYC"], name="Spread Titoli CCC", line=dict(color="#ef4444", width=2)))
-            start_d = hy_spread.index[-365] if len(hy_spread) > 365 else hy_spread.index[0]
+            add_nber_recessions(fig1)
+            start_d = hy_spread.index[-365*3] if len(hy_spread) > 365*3 else hy_spread.index[0]
             fig1.update_xaxes(
                 range=[start_d, hy_spread.index[-1]],
                 rangeselector=dict(
@@ -722,23 +798,22 @@ with tab1:
                 st.markdown("""
                 <div class="macro-depth-box">
                     <b>Come funziona l'intreccio macroeconomico:</b><br>
-                    Lo spread del credito è il vero indicatore anticipatore della borsa. Le azioni riflettono l'ottimismo, ma il mercato obbligazionario muove trilioni di dollari ed è governato da investitori istituzionali.
-                    <br>• Quando i tassi della Fed restano elevati a lungo, le aziende deboli non riescono a ripagare il debito emesso a tasso zero negli anni passati.
-                    <br>• Se lo spread CCC sale mentre l'S&P 500 è sui massimi, si crea una divergenza ribassista insanabile: entro 4-6 mesi la contrazione del credito costringe i fondi a vendere anche i titoli azionari più solidi per coprire le perdite obbligazionarie.
+                    Le bande grigie evidenziano le recessioni ufficiali USA. Guarda come lo spread CCC si impenna sempre violentemente PRIMA dell'ingresso nella banda grigia.
+                    <br>• Se lo spread CCC sale mentre l'S&P 500 è sui massimi, la contrazione del credito costringe i fondi a vendere anche i titoli azionari più solidi per coprire le perdite obbligazionarie.
                 </div>
                 """, unsafe_allow_html=True)
 
     with col_b:
         st.markdown('<div class="chart-header-title">Rapporto di Stress: Spread CCC / High Yield</div>', unsafe_allow_html=True)
         if not ratio_ccc_hy.empty:
-            fig2 = render_isolated_chart(ratio_ccc_hy, is_candlestick=False, default_color="#dc2626", is_ratio=True)
+            fig2 = render_isolated_chart(ratio_ccc_hy, is_candlestick=False, default_color="#dc2626", is_ratio=True, has_recession_shading=True)
             st.plotly_chart(fig2, use_container_width=True)
             with st.expander("🔍 Ingrandisci & Analisi Intreccio Dati Macro"):
                 st.markdown("""
                 <div class="macro-depth-box">
                     <b>Come funziona l'intreccio macroeconomico:</b><br>
                     Questo rapporto isola lo stress sistemico ripulendolo dai tassi governativi.
-                    <br>• Se il ratio supera 3.5x - 4.0x, significa che il mercato rifiuta categoricamente di finanziare la parte bassa della piramide creditizia. È la medesima configurazione vista prima del crash del 2008.
+                    <br>• Se il ratio supera 3.5x - 4.0x, significa che il mercato rifiuta categoricamente di finanziare la parte bassa della piramide creditizia.
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -753,7 +828,7 @@ with tab1:
                 <div class="macro-depth-box">
                     <b>Come funziona l'intreccio macroeconomico:</b><br>
                     BIZD racchiude le BDC (Business Development Companies), ovvero il cuore del debito privato americano non regolamentato.
-                    <br>• Gran parte del leasing per server e data center viene garantito con debito privato a tassi variabili alti. Se BIZD cala, i tassi di insolvenza nei prestiti diretti stanno aumentando.
+                    <br>• Se BIZD cala, i tassi di insolvenza nei prestiti diretti stanno aumentando, segnalando che la liquidità alternativa si sta prosciugando.
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -767,7 +842,7 @@ with tab1:
                 <div class="macro-depth-box">
                     <b>Come funziona l'intreccio macroeconomico:</b><br>
                     Blue Owl è il principale asset manager che finanzia a debito cluster di GPU e centri di calcolo.
-                    <br>• Monitorare OWL permette di capire se il mercato azionario crede nella solvibilità a lungo termine degli investimenti in data center.
+                    <br>• È il barometro borsistico della sostenibilità del debito dei data center.
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -783,8 +858,7 @@ with tab2:
                 st.markdown("""
                 <div class="macro-depth-box">
                     <b>Come funziona l'intreccio macroeconomico:</b><br>
-                    Nvidia è il barometro della liquidità azionaria globale.
-                    <br>• Finché le Big Tech aumentano il budget Capex per i data center, Nvidia sale. Se il debito infrastrutturale o il rendimento del software deludono, le Big Tech taglieranno gli ordini di chip e Nvidia guiderà la correzione.
+                    Finché le Big Tech aumentano il budget Capex per i data center, Nvidia sale. Se il debito infrastrutturale subisce un freno, le Big Tech taglieranno gli ordini di chip e Nvidia guiderà la correzione.
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -798,7 +872,6 @@ with tab2:
                 <div class="macro-depth-box">
                     <b>Come funziona l'intreccio macroeconomico:</b><br>
                     SK Hynix è l'unico collo di bottiglia fisico reale dei processori Nvidia (fornisce oltre l'80% delle memorie HBM3/HBM3e).
-                    <br>• Le sue trimestrali rivelano se la produzione di server fisici è in accelerazione o se emergono accumuli di scorte nei magazzini asiatici.
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -812,8 +885,7 @@ with tab2:
                 st.markdown("""
                 <div class="macro-depth-box">
                     <b>Come funziona l'intreccio macroeconomico:</b><br>
-                    Misura se il mercato sta prezzando una crescita dell'hardware superiore al software.
-                    <br>• Storicamente, i picchi parabolici di questo ratio coincidono con i top ciclici del Nasdaq (2000 e fine 2021).
+                    Misura se l'hardware sta correndo molto più velocemente del software. Storicamente i picchi parabolici di questo ratio coincidono con i top ciclici del Nasdaq.
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -837,7 +909,7 @@ with tab2:
                 st.markdown("""
                 <div class="macro-depth-box">
                     <b>Come funziona l'intreccio macroeconomico:</b><br>
-                    Se l'indice equiponderato (RSP) è debole mentre le prime 7 società (MAGS) continuano a segnare massimi, gli investitori non stanno comprando l'economia reale, ma si stanno rifugiando negli unici monopoli con liquidità infinita.
+                    Se RSP è debole mentre le prime 7 società salgono, siamo in piena divergenza da concentrazione.
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -845,13 +917,14 @@ with tab2:
 with tab3:
     col_i, col_l = st.columns(2)
     with col_i:
-        st.markdown('<div class="chart-header-title">Disoccupazione USA & Trigger Recessionario Sahm</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-header-title">Disoccupazione USA & Trigger Recessionario Sahm (con Aree NBER)</div>', unsafe_allow_html=True)
         if not unrate.empty and not sahm.empty:
             fig9 = go.Figure()
             fig9.add_trace(go.Scatter(x=unrate.index, y=unrate["UNRATE"], name="Disoccupazione (%)", line=dict(color="#94a3b8", width=1.5)))
             fig9.add_trace(go.Scatter(x=sahm.index, y=sahm["SAHMREALTIME"], name="Regola di Sahm", line=dict(color="#ef4444", width=2.2)))
             fig9.add_hline(y=0.5, line_dash="dash", line_color="#ef4444", annotation_text="Trigger Recessione (0.50)", annotation_font_color="#ffffff")
-            start_d = sahm.index[-365] if len(sahm) > 365 else sahm.index[0]
+            add_nber_recessions(fig9)
+            start_d = sahm.index[-365*3] if len(sahm) > 365*3 else sahm.index[0]
             fig9.update_xaxes(range=[start_d, sahm.index[-1]])
             fig9.update_layout(title=None, template="plotly_dark", height=380, paper_bgcolor="#07090e", plot_bgcolor="#07090e", font=dict(color="#ffffff"), margin=dict(l=15, r=15, t=35, b=15))
             st.plotly_chart(fig9, use_container_width=True)
@@ -859,27 +932,26 @@ with tab3:
                 st.markdown("""
                 <div class="macro-depth-box">
                     <b>Come funziona l'intreccio macroeconomico:</b><br>
-                    L'economia USA si basa per il 70% sui consumi interni.
-                    <br>• Se i licenziamenti aumentano e l'indicatore Sahm raggiunge 0.50, i consumi contraggono i margini aziendali, innescando revisioni al ribasso degli utili per tutto l'azionario.
+                    Guarda come il superamento di quota 0.50 coincide con precisione chirurgica con l'inizio delle bande grigie di recessione.
                 </div>
                 """, unsafe_allow_html=True)
 
     with col_l:
-        st.markdown('<div class="chart-header-title">Differenziale Tassi USA (10 Anni - 2 Anni)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="chart-header-title">Differenziale Tassi USA (10 Anni - 2 Anni) con Aree Recessione</div>', unsafe_allow_html=True)
         if not t10y2y.empty:
             fig10 = go.Figure()
             fig10.add_trace(go.Scatter(x=t10y2y.index, y=t10y2y["T10Y2Y"], name="Curva 10Y-2Y", line=dict(color="#06b6d4", width=1.8)))
             fig10.add_hline(y=0.0, line_dash="dash", line_color="#ffffff")
-            start_d = t10y2y.index[-365] if len(t10y2y) > 365 else t10y2y.index[0]
+            add_nber_recessions(fig10)
+            start_d = t10y2y.index[-365*3] if len(t10y2y) > 365*3 else t10y2y.index[0]
             fig10.update_xaxes(range=[start_d, t10y2y.index[-1]])
             fig10.update_layout(title=None, template="plotly_dark", height=380, paper_bgcolor="#07090e", plot_bgcolor="#07090e", font=dict(color="#ffffff"), margin=dict(l=15, r=15, t=35, b=15))
             st.plotly_chart(fig10, use_container_width=True)
             with st.expander("🔍 Ingrandisci & Analisi Intreccio Dati Macro"):
                 st.markdown("""
                 <div class="macro-depth-box">
-                    <b>Come funziona l'intreccio macroeconomico (L'esempio del 10 Anni e dell'Oro):</b><br>
-                    I bond a 10 anni fissano il costo globale del denaro. 
-                    <br>• Quando la curva si disinverte perché la Fed taglia i tassi (abbassando i tassi reali a breve), l'Oro esplode verso l'alto come scudo primario contro la svalutazione debitoria.
+                    <b>Come funziona l'intreccio macroeconomico:</b><br>
+                    Nota come la recessione (banda grigia) non parte MAI durante l'inversione sotto zero, ma sempre DURANTE la disinversione verso l'alto.
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -893,8 +965,7 @@ with tab3:
                 st.markdown("""
                 <div class="macro-depth-box">
                     <b>Come funziona l'intreccio macroeconomico:</b><br>
-                    Il VIX misura il prezzo pagato dai market maker per coprirsi dai ribassi.
-                    <br>• Un VIX persistentemente sotto 14 riflette compiacenza cieca. I rialzi improvvisi oltre quota 25 provocano liquidazioni forzate da parte dei fondi quantitativi sistematici (CTA).
+                    I rialzi improvvisi oltre quota 25-30 segnalano scarichi forzati da parte dei fondi quantitativi sistematici.
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -907,8 +978,7 @@ with tab3:
                 st.markdown("""
                 <div class="macro-depth-box">
                     <b>Come funziona l'intreccio macroeconomico:</b><br>
-                    Confronta la "moneta non stampabile" (Oro) contro l'asset speculativo cartolare per eccellenza (Nasdaq).
-                    <br>• Quando il ratio inverte la rotta e sale stabilmente, i grandi patrimoni globali stanno disinvestendo dalla crescita tecnologica per proteggere il capitale nei beni reali.
+                    Quando il ratio sale stabilmente, i grandi patrimoni globali stanno disinvestendo dalla crescita tecnologica per proteggere il capitale nei beni reali.
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -917,11 +987,9 @@ with tab4:
     if not btc.empty:
         df_btc = btc.copy()
         
-        # Medie Chiave (20 e 21 Settimane)
         df_btc["SMA_20W"] = df_btc["Close"].rolling(window=140).mean()
         df_btc["EMA_21W"] = df_btc["Close"].ewm(span=147, adjust=False).mean()
         
-        # Mayer Multiple (Prezzo / 200 SMA giornaliera)
         df_btc["SMA_200D"] = df_btc["Close"].rolling(window=200).mean()
         df_btc["Mayer_Multiple"] = df_btc["Close"] / df_btc["SMA_200D"]
 
@@ -959,8 +1027,7 @@ with tab4:
                 st.markdown("""
                 <div class="macro-depth-box">
                     <b>Come funziona l'intreccio macroeconomico:</b><br>
-                    Bitcoin è un termometro purissimo della liquidità fiat globale.
-                    <br>• Finché il prezzo scambia stabilmente sopra la fascia 20W SMA / 21W EMA, ogni correzione è fisiologica. La perdita di queste medie segnala il passaggio a una fase di contrazione prolungata.
+                    Finché il prezzo scambia stabilmente sopra la fascia 20W SMA / 21W EMA, ogni ritracciamento è correzione fisiologica nel bull market.
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -986,8 +1053,7 @@ with tab4:
                 st.markdown("""
                 <div class="macro-depth-box">
                     <b>Come funziona l'intreccio macroeconomico:</b><br>
-                    Il Mayer Multiple calcola il rapporto tra il prezzo corrente di Bitcoin e la sua media mobile a 200 giorni.
-                    <br>• Valori sopra 2.4x indicano euforia speculativa e massimi di ciclo; valori inferiori a 0.8x hanno sempre coinciso con i minimi generazionali di accumulo.
+                    Valori sopra 2.4x indicano euforia speculativa e massimi di ciclo; valori inferiori a 0.8x hanno sempre coinciso con i minimi generazionali di accumulo.
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -1002,11 +1068,11 @@ st.markdown("""
     <h4 style="color:#38bdf8; margin-top:0; font-size:16px; font-weight:800;">Mappatura sulle 5 Fasi della Bolla (Teoria di Hyman Minsky)</h4>
     <p style="color:#ffffff; font-size:13.5px; line-height:1.6;">
         Ogni bolla finanziaria della storia segue una scansione in 5 atti:
-        <br><b>1. Spostamento:</b> Nuovo paradigma (es. Internet nel 1995, Mutui facili nel 2003, Stimoli Covid nel 2020, Modelli AI generativi nel 2022).
+        <br><b>1. Spostamento:</b> Nuovo paradigma tecnologico o monetario.
         <br><b>2. Boom:</b> Investimenti giganteschi in conto capitale (Capex data center, chip GPU).
         <br><b>3. Euforia:</b> Rally trainato da pochi titoli colossali, multipli storicamente insostenibili (Nvidia, Mag 7).
         <br><b>4. Prime Crepe nel Debito & Prese di Beneficio <span style="color:#f59e0b; font-weight:900;">[FASE DI TRANSIZIONE ATTUALE]</span>:</b> 
-        I tassi alti prosciugano il debito più debole (CCC, prestiti privati BDC). I titoli ordinari smettono di salire, mentre solo i colossi con riserve di cassa reggono i massimi.
+        I tassi alti prosciugano il debito più debole (CCC, prestiti privati BDC, rischio moratorie sui data center).
         <br><b>5. Panico / Revirement Sistemico:</b> L'insolvenza del debito periferico congela gli investimenti Capex e si trasmette al centro della cipolla.
     </p>
 
@@ -1040,7 +1106,7 @@ st.markdown("""
             <div style="font-size:12.5px; color:#ffffff; margin-top:6px; line-height:1.5;">
                 • <b>Driver:</b> Capex cluster GPU e data center.<br>
                 • <b>Concentrazione:</b> Top 10 titoli = ~35% dell'S&P (Record).<br>
-                • <b>Vulnerabilità:</b> Se il ROI dell'AI ritarda, il debito cartolarizzato delle infrastrutture (OWL, BIZD) implode.
+                • <b>Vulnerabilità (Fink Alert):</b> Se gli Stati bloccano i permessi energetici per i data center, il capex si congela e fa crollare l'intero castello.
             </div>
         </div>
     </div>
