@@ -7,40 +7,78 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # ==========================================
-# CONFIGURAZIONE PAGINA
+# CONFIGURAZIONE INTERFACCIA E TEMA SCURO
 # ==========================================
 st.set_page_config(
-    page_title="Macro Risk Terminal | Macro, Credit & AI Bubble Radar",
+    page_title="Macro Risk Terminal | Global Market Intelligence",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS per lo stile "Terminale Finanziario"
+# Stile CSS Obsidian Black & Card Istituzionali
 st.markdown("""
 <style>
-    .report-box {
-        background-color: #0e1726;
+    /* Sfondo generale e container scuro profondo */
+    .stApp {
+        background-color: #07090e;
+        color: #e2e8f0;
+    }
+    
+    /* Box Report AI Esecutivo */
+    .executive-card {
+        background: linear-gradient(145deg, #0f172a, #0b1120);
         border: 1px solid #1e293b;
         border-radius: 12px;
         padding: 24px;
-        margin-top: 15px;
-        margin-bottom: 25px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        margin: 20px 0;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
     }
-    .metric-card {
-        background-color: #111827;
+    
+    .pillar-box {
+        background-color: #131d31;
         border-radius: 8px;
-        padding: 15px;
+        padding: 18px;
+        border-top: 3px solid #38bdf8;
+        height: 100%;
+    }
+    
+    .strategy-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    .strategy-table th {
+        background-color: #1e293b;
+        color: #94a3b8;
+        padding: 10px;
+        text-align: left;
+        font-size: 13px;
+    }
+    .strategy-table td {
+        padding: 12px 10px;
+        border-bottom: 1px solid #1e293b;
+        font-size: 13.5px;
+    }
+    
+    /* Guide didattiche sotto i grafici */
+    .guide-card {
+        background-color: #0d1527;
         border-left: 4px solid #3b82f6;
+        border-radius: 0 8px 8px 0;
+        padding: 12px 16px;
+        margin-top: -10px;
+        margin-bottom: 25px;
+        font-size: 13px;
+        color: #cbd5e1;
     }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🌐 Macro & Systemic Risk Intelligence Terminal")
-st.caption("Framework di Analisi Ciclica: Liquidità Netta, Canale del Credito, AI Capex & Modelli Quantitativi")
+st.title("🌐 Macro Risk & Liquidity Intelligence Terminal")
+st.markdown("Piattaforma quantitativa per l'analisi dei cicli economici, della solidità del credito e del rischio sistemico sui mercati globali.")
 
 # ==========================================
-# FUNZIONI DOWNLOAD DATI (FRED & YAHOO)
+# GESTIONE DATI IN CACHE (FRED & YAHOO)
 # ==========================================
 @st.cache_data(ttl=3600)
 def load_fred_data(series_id):
@@ -66,28 +104,28 @@ def load_yahoo_data(ticker, period="3y"):
     except Exception:
         return pd.DataFrame()
 
-with st.spinner("Acquisizione feed macroeconomici, obbligazionari e azionari in corso..."):
-    # FRED Macro & Credit
-    hy_spread = load_fred_data("BAMLH0A0HYM2")       # 1. High Yield Spread
-    ccc_spread = load_fred_data("BAMLH0A3HYC")       # 2. CCC Spread
-    unrate = load_fred_data("UNRATE")               # Disoccupazione USA
+with st.spinner("Aggiornamento dati in tempo reale dai mercati internazionali..."):
+    # Dati Federal Reserve (FRED)
+    hy_spread = load_fred_data("BAMLH0A0HYM2")       # High Yield Spread
+    ccc_spread = load_fred_data("BAMLH0A3HYC")       # CCC Spread
+    unrate = load_fred_data("UNRATE")               # Disoccupazione
     sahm = load_fred_data("SAHMREALTIME")           # Sahm Rule
     t10y2y = load_fred_data("T10Y2Y")               # Curva 10Y-2Y
     
-    # Yahoo Finance: Equity, Hardware AI, Private Credit
-    owl = load_yahoo_data("OWL")                    # Blue Owl (Private Credit / AI data center)
-    bizd = load_yahoo_data("BIZD")                  # BDC ETF (Private debt canary)
+    # Dati Finanziari (Yahoo Finance)
+    owl = load_yahoo_data("OWL")                    # Blue Owl (Private Credit)
+    bizd = load_yahoo_data("BIZD")                  # BDC ETF
     nvda = load_yahoo_data("NVDA")                  # Nvidia
-    mags = load_yahoo_data("MAGS")                  # Mag 7 ETF
+    mags = load_yahoo_data("MAGS")                  # Mega-Cap Tech ETF
     rsp = load_yahoo_data("RSP")                    # S&P Equal Weight
-    sox = load_yahoo_data("^SOX")                   # Philly Semiconductor
+    sox = load_yahoo_data("^SOX")                   # Semiconduttori
     ndx = load_yahoo_data("^NDX")                   # Nasdaq 100
-    skhynix = load_yahoo_data("000660.KS")          # SK Hynix (HBM Memory Bottleneck)
-    gold = load_yahoo_data("GC=F")                  # Oro Futures
-    vix = load_yahoo_data("^VIX")                   # VIX
-    btc = load_yahoo_data("BTC-USD", period="5y")   # Bitcoin per modello Cowen
+    skhynix = load_yahoo_data("000660.KS")          # SK Hynix
+    gold = load_yahoo_data("GC=F")                  # Oro
+    vix = load_yahoo_data("^VIX")                   # Indice Volatilità VIX
+    btc = load_yahoo_data("BTC-USD", period="5y")   # Bitcoin
 
-# Calcoli Spread e Ratios
+# Calcolo Ratios
 ratio_ccc_hy = pd.DataFrame()
 if not ccc_spread.empty and not hy_spread.empty:
     m_cred = pd.concat([ccc_spread, hy_spread], axis=1).dropna()
@@ -103,339 +141,477 @@ if not gold.empty and not ndx.empty:
     m_gold = pd.concat([gold, ndx], axis=1).dropna()
     ratio_gold_ndx = (m_gold["GC=F"] / m_gold["^NDX"]).to_frame("Ratio_Gold_NDX")
 
-# ==========================================
-# CALCOLATORE RISCHIO SISTEMICO & CICLO MACRO
-# ==========================================
+# Valori Attuali per il Calcolo
 curr_sahm = float(sahm.iloc[-1].values[0]) if not sahm.empty else 0.0
 curr_curve = float(t10y2y.iloc[-1].values[0]) if not t10y2y.empty else 0.0
-curr_ccc = float(ccc_spread.iloc[-1].values[0]) if not ccc_spread.empty else 0.0
 curr_ratio_cred = float(ratio_ccc_hy.iloc[-1].values[0]) if not ratio_ccc_hy.empty else 3.0
 curr_vix = float(vix.iloc[-1].values[0]) if not vix.empty else 15.0
 
-# Algoritmo di punteggio di Rischio Sistemico (0 - 100)
+# Calcolo Algoritmico Rischio Sistemico (0-100)
 risk_score = 0
 if curr_sahm >= 0.50: risk_score += 35
 elif curr_sahm >= 0.35: risk_score += 20
 
 if curr_curve > 0 and not t10y2y.empty and (t10y2y.tail(180).min().values[0] < -0.2):
-    risk_score += 25  # Disinversione post-inversione profonda (pericolosissima)
+    risk_score += 25  # Disinversione della curva
 elif curr_curve < 0:
-    risk_score += 15  # Curva ancora invertita
+    risk_score += 15
 
 if curr_ratio_cred > 3.8: risk_score += 25
 elif curr_ratio_cred > 3.2: risk_score += 15
 
 if curr_vix > 25: risk_score += 15
 elif curr_vix > 20: risk_score += 8
-
 risk_score = min(risk_score, 100)
 
-# Diagnosi Fase di Ciclo Macro
+# Diagnosi di Ciclo
 if curr_sahm >= 0.50:
-    fase_ciclo = "FASE 4: RECESSIONE SISTEMICA / SHOCK LAVORO (Risk-Off Totale)"
-    fase_badge = "🔴 CONTRAZIONE REALE"
+    fase_ciclo = "Fase 4: Rischio Recessione Confermato (Regola di Sahm Attiva)"
+    badge_col = "#ef4444"
 elif curr_curve > 0 and risk_score >= 50:
-    fase_ciclo = "FASE 3: LATE CYCLE AVANZATO - Disinversione della Curva & Stress da Debito"
-    fase_badge = "⚠️ LATE CYCLE / ROTAZIONE DIFENSIVA"
+    fase_ciclo = "Fase 3: Fine Ciclo (Disinversione Curva & Primi Segnali di Rallentamento)"
+    badge_col = "#f59e0b"
 elif not ratio_sox_ndx.empty and ratio_sox_ndx.iloc[-1].values[0] > ratio_sox_ndx.tail(252).quantile(0.85).values[0]:
-    fase_ciclo = "FASE 2: ESPANSIONE SPECULATIVA GUIDATA DALL'AI (Capex Overdrive)"
-    fase_badge = "🟡 ESPANSIONE CONCENTRATA"
+    fase_ciclo = "Fase 2: Espansione Guidata dal Settore Tecnologico / AI Capex"
+    badge_col = "#38bdf8"
 else:
-    fase_ciclo = "FASE 1: RIPRESA / ACCUMULAZIONE EQUILIBRATA"
-    fase_badge = "🟢 ACCUMULAZIONE"
-
-# Visualizzazione Header Metriche
-col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-col_m1.metric("Indice Rischio Sistemico", f"{risk_score} / 100", delta="Allerta Alta" if risk_score > 60 else "Normale", delta_color="inverse")
-col_m2.metric("Regola di Sahm (Recessione)", f"{curr_sahm:.2f}", delta="Trigger a 0.50", delta_color="inverse" if curr_sahm >= 0.5 else "off")
-col_m3.metric("Curva 10Y - 2Y", f"{curr_curve:.2f}%", delta="Disinvertita" if curr_curve > 0 else "Invertita")
-col_m4.metric("Ratio CCC / HY", f"{curr_ratio_cred:.2f}x", delta="Stress Creditizio" if curr_ratio_cred > 3.5 else "Stabile", delta_color="inverse")
-
-st.info(f"**Diagnosi Macro Quantitativa Corrente:** {fase_badge} — *{fase_ciclo}*")
+    fase_ciclo = "Fase 1: Espansione / Accumulazione Sincrona"
+    badge_col = "#10b981"
 
 # ==========================================
-# 1. IL GRAFICO A CIPOLLA AD ANELLI CONCENTRICI (STILE VITO LOPS)
+# METRICHE PRINCIPALI CON TOOLTIP EDUCATIVI
 # ==========================================
-st.subheader("🧅 Il Modello a Cipolla del Rischio AI: Struttura ad Anelli Concentrici")
-st.caption("Rappresentazione ad anelli non a fette (stile Vito Lops): dal nucleo solido con cassa (Verde) verso l'esterno dove il debito spazzatura e i rifinanziamenti collassano per primi (Rosso).")
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric(
+    label="Indice di Rischio Sistemico",
+    value=f"{risk_score} / 100",
+    delta="Critico" if risk_score > 65 else ("Attenzione" if risk_score > 40 else "Stabile"),
+    delta_color="inverse",
+    help="COSA SIGNIFICA: Punteggio complessivo da 0 a 100 che aggrega 4 elementi chiave: tasso di disoccupazione, curva dei rendimenti, spread sui titoli spazzatura e volatilità VIX.\n\nCOME LEGGERLO:\n• Sotto 40: Mercato solido, bassa probabilità di crolli imminenti.\n• 40 - 65: Allerta, aumentano le divergenze tra debito e azioni.\n• Sopra 65: Rischio sistemico elevato, storicamente associato a forti correzioni o recessioni."
+)
+
+col2.metric(
+    label="Regola di Sahm (Recessione USA)",
+    value=f"{curr_sahm:.2f}",
+    delta="Soglia Recessione: 0.50",
+    delta_color="inverse" if curr_sahm >= 0.5 else "off",
+    help="COSA SIGNIFICA: Indicatore storico della Federal Reserve che misura quanto velocemente sta salendo la disoccupazione rispetto ai minimi dell'ultimo anno.\n\nCOME LEGGERLO:\n• Sotto 0.35: Mercato del lavoro in piena salute.\n• Tra 0.35 e 0.49: Il mercato del lavoro sta rallentando.\n• Sopra 0.50: Ha anticipato senza mai fallire ogni singola recessione negli Stati Uniti dal 1950 a oggi."
+)
+
+col3.metric(
+    label="Curva Rendimenti USA (10Y - 2Y)",
+    value=f"{curr_curve:.2f}%",
+    delta="Disinvertita" if curr_curve > 0 else "Invertita",
+    help="COSA SIGNIFICA: Differenza tra il rendimento dei titoli di stato USA a 10 anni e quelli a 2 anni.\n\nCOME LEGGERLO:\n• Valore Negativo (Inversione): I mercati prevedono problemi economici a medio termine.\n• Ritorno a Valori Positivi (Disinversione): È il vero momento di allerta. Segnala che la banca centrale sta per tagliare i tassi in fretta perché l'economia sta rallentando."
+)
+
+col4.metric(
+    label="Rapporto Debito CCC / High Yield",
+    value=f"{curr_ratio_cred:.2f}x",
+    delta="Stress Credito" if curr_ratio_cred > 3.5 else "Normale",
+    delta_color="inverse",
+    help="COSA SIGNIFICA: Confronta i rendimenti delle aziende con rating peggiore (titoli spazzatura CCC) con quelle High Yield ordinarie. È il vero campanello d'allarme del debito aziendale.\n\nCOME LEGGERLO:\n• Sotto 3.2x: Le aziende fragili riescono a rifinanziarsi facilmente.\n• Sopra 3.5x - 4.0x: Gli investitori rifiutano di prestare soldi alle imprese deboli. È qui che inizia la catena di default prima che si rifletta sui mercati azionari."
+)
+
+st.markdown(f"""
+<div style="background-color:#0f172a; border-left: 5px solid {badge_col}; padding: 10px 16px; border-radius: 6px; margin: 15px 0 25px 0;">
+    <span style="font-size:12px; text-transform:uppercase; color:#94a3b8; font-weight:bold;">Inquadramento di Mercato:</span><br>
+    <span style="font-size:15px; font-weight:600; color:#f8fafc;">{fase_ciclo}</span>
+</div>
+""", unsafe_allow_html=True)
+
+# ==========================================
+# 1. GRAFICO A CIPOLLA AD ANELLI CONCENTRICI
+# ==========================================
+st.markdown("### 🧅 Modello di Trasmissione del Rischio ad Anelli Concentrici")
+st.markdown("""
+Questo diagramma mappa la vulnerabilità del mercato come una serie di strati protettivi. 
+La bolla e le perdite partono sempre dall'**anello esterno (rosso)**, dove risiede il debito più debole, 
+mentre il **nucleo centrale (verde)** è composto da aziende ricche di liquidità che cedono solo per ultime.
+""")
 
 fig_onion = go.Figure()
 
-# Definizione raggi anelli concentrici
-# Anello 4 (Esterno): R=4 | Anello 3: R=3 | Anello 2: R=2 | Nucleo: R=1
-rings = [
+onion_rings = [
     {
         "r": 4.0,
-        "fill": "rgba(239, 68, 68, 0.22)",
+        "fill": "rgba(239, 68, 68, 0.20)",
         "line": "#ef4444",
-        "title": "LIVELLO 4 (PERIFERIA): CREDITO SPAZZATURA & STARTUP ZOMBIE",
-        "desc": "Spread CCC (BAMLH0A3HYC) • Ratio CCC/HY • Startup AI prive di flussi di cassa • Altcoin speculative",
-        "status": "🔴 BOLLA IN CONTRAZIONE / STRESS ELEVATO",
-        "y_pos": 3.4
+        "title": "LIVELLO 4 (PERIFERIA): DEBITO SPAZZATURA & AZIENDE ZOMBIE",
+        "desc": "Spread Titoli CCC • Rapporto Debito CCC/HY • Startup non profittevoli • Token speculativi",
+        "status": "🔴 AREA DI PRIMO COLLASSO / ALTO TASSO DI VULNERABILITÀ",
+        "y": 3.42
     },
     {
         "r": 3.0,
-        "fill": "rgba(249, 115, 22, 0.30)",
+        "fill": "rgba(249, 115, 22, 0.28)",
         "line": "#f97316",
-        "title": "LIVELLO 3: PRIVATE CREDIT & DEBITO INFRASTRUTTURALE DATA CENTER",
-        "desc": "Blue Owl (OWL) • BIZD (BDC) • Debito CoreWeave (USU2069EAB6) • Bond lunghi Oracle (2065) & Tech",
-        "status": "🟠 FRAGILITÀ FINANZIARIA / SOSTENIBILITÀ CAPEX",
-        "y_pos": 2.4
+        "title": "LIVELLO 3: PRIVATE CREDIT & FINANZIAMENTO INFRASTRUTTURE",
+        "desc": "Blue Owl (OWL) • BIZD (BDC) • Debito CoreWeave (USU2069EAB6) • Obbligazioni a 30-40 anni Big Tech",
+        "status": "🟠 SOSTENIBILITÀ DEL DEBITO SOTTO PRESSIONE",
+        "y": 2.42
     },
     {
         "r": 2.0,
-        "fill": "rgba(163, 230, 53, 0.38)",
+        "fill": "rgba(163, 230, 53, 0.35)",
         "line": "#84cc16",
-        "title": "LIVELLO 2: HARDWARE, SEMICONDUTTORI & CATENA DI FORNITURA",
-        "desc": "SK Hynix (000660.KS - Memorie HBM) • Indice Semiconduttori (^SOX) • TSMC • ASML",
-        "status": "🟡 CICLICO / MARGINI ELEVATI MA VULNERABILI A RALLENTAMENTI",
-        "y_pos": 1.45
+        "title": "LIVELLO 2: HARDWARE, SEMICONDUTTORI & FORNITORI CRITICI",
+        "desc": "SK Hynix (Memorie HBM) • Indice Semiconduttori (^SOX) • Produttori di Chip Fisici",
+        "status": "🟡 OTTIMI UTILI MA FORTEMENTE DIPENDENTI DAL CAPEX",
+        "y": 1.45
     },
     {
         "r": 1.0,
         "fill": "rgba(16, 185, 129, 0.88)",
         "line": "#10b981",
-        "title": "LIVELLO 1 (NUCLEO): BIG TECH & MEGA-CAPS (LA FORTEZZA)",
-        "desc": "Nvidia (NVDA) • Microsoft • Meta • Alphabet • Apple • Mag 7 (MAGS)",
-        "status": "🟢 BILANCI FORTIFICATI / CASSA ENORME / MONOPOLI INTATTI",
-        "y_pos": 0.0
+        "title": "LIVELLO 1 (CENTRO): BIG TECH & MONOPOLI DI MERCATO",
+        "desc": "Nvidia (NVDA) • Mega-Cap Tecnologiche (MAGS: Microsoft, Google, Meta, Apple)",
+        "status": "🟢 BILANCI FORTIFICATI / CASSA RECORD / IMBATTUTI",
+        "y": 0.0
     }
 ]
 
-# Disegno anelli concentrici
-for ring in rings:
+for ring in onion_rings:
     r = ring["r"]
     fig_onion.add_shape(
         type="circle",
         xref="x", yref="y",
         x0=-r, y0=-r, x1=r, y1=r,
         fillcolor=ring["fill"],
-        line=dict(color=ring["line"], width=3, dash="solid" if r == 1.0 else "dot")
+        line=dict(color=ring["line"], width=2.5, dash="solid" if r == 1.0 else "dot")
     )
-    # Annotazione testuale descrittiva posizionata nell'anello
     fig_onion.add_annotation(
-        x=0, y=ring["y_pos"],
-        text=f"<b>{ring['title']}</b><br><span style='font-size:11px;'>{ring['desc']}</span><br><b>[{ring['status']}]</b>",
+        x=0, y=ring["y"],
+        text=f"<b>{ring['title']}</b><br><span style='font-size:11px; color:#cbd5e1;'>{ring['desc']}</span><br><b>[{ring['status']}]</b>",
         showarrow=False,
-        font=dict(color="#f8fafc", size=12),
+        font=dict(color="#f8fafc", size=11.5),
         align="center",
-        bgcolor="rgba(15, 23, 42, 0.7)",
+        bgcolor="rgba(10, 15, 29, 0.85)",
         bordercolor=ring["line"],
         borderwidth=1,
-        borderpad=5
+        borderpad=6
     )
 
 fig_onion.update_xaxes(range=[-4.3, 4.3], showgrid=False, zeroline=False, showticklabels=False)
 fig_onion.update_yaxes(range=[-4.3, 4.3], showgrid=False, zeroline=False, showticklabels=False)
 fig_onion.update_layout(
-    height=680,
-    margin=dict(l=10, r=10, t=10, b=10),
+    height=670,
+    margin=dict(l=5, r=5, t=10, b=10),
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)"
 )
 st.plotly_chart(fig_onion, use_container_width=True)
 
 # ==========================================
-# 2. LOCANDINA ASSISTENTE AI: SINTESI ANALITICA INTELLIGENTE
+# 2. RAPPORTO ESECUTIVO DI ANALISI (FORMATO PROFESSIONALE)
 # ==========================================
-st.markdown("### 📋 Bollettino di Intelligence Macroeconomica & Sintesi Operativa")
+st.markdown("### 📑 Bollettino Esecutivo di Analisi Macroeconomica")
 
-report_html = f"""
-<div class="report-box">
-    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:12px; margin-bottom:16px;">
-        <h4 style="margin:0; color:#38bdf8;">🧠 Macro AI Copilot Report — Metodologia Lops, Bottaioli, Cowen, Pizzino</h4>
-        <span style="background-color:#1e293b; color:#94a3b8; padding:4px 10px; border-radius:6px; font-size:12px;">Data Feed: {datetime.now().strftime('%d/%m/%Y')}</span>
+st.markdown(f"""
+<div class="executive-card">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e293b; padding-bottom:14px; margin-bottom:20px;">
+        <div>
+            <h3 style="margin:0; color:#38bdf8; font-size:18px;">Rapporto Sintetico di Posizionamento sui Mercati</h3>
+            <p style="margin:4px 0 0 0; font-size:13px; color:#94a3b8;">Sintesi dei dati calcolata automaticamente dai modelli di bilancio e credito.</p>
+        </div>
+        <span style="background-color:#1e293b; color:#cbd5e1; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:600;">
+            Data di Riferimento: {datetime.now().strftime('%d %B %Y')}
+        </span>
     </div>
-    
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-        <div>
-            <h5 style="color:#ef4444;">1. Il Canale del Debito & Private Credit (La Canarina nella Miniera)</h5>
-            <p style="font-size:13.5px; line-height:1.6; color:#cbd5e1;">
-                Il ratio <b>CCC / HY ({curr_ratio_cred:.2f}x)</b> indica se il mercato obbligazionario sta prezzando default selettivi. 
-                Come insegna Vito Lops, la bolla non scoppia dalle Big Tech (che posseggono miliardi di liquidità), ma dal <b>rifinanziamento dell'infrastruttura a debito</b>: 
-                Blue Owl (OWL) e BIZD rappresentano il termometro del <i>private credit</i> che sostiene i contratti GPU di CoreWeave e i data center ipotecati. 
-                Se BIZD continua a comprimere i margini e i rendimenti dei bond ultra-trentennali (Oracle 2065, Alphabet 2060) chiedono un premio maggiore, 
-                il costo di rifinanziamento per il capex AI diventerà insostenibile.
-            </p>
-            
-            <h5 style="color:#eab308;">2. Ampiezza di Mercato: S&P Equal Weight (RSP) vs Mega-Caps</h5>
-            <p style="font-size:13.5px; line-height:1.6; color:#cbd5e1;">
-                Nello stile di Jason Pizzino e Stefano Bottaioli, la divergenza primaria è visibile confrontando <b>RSP (Equal Weight)</b> con le Mag 7. 
-                Quando solo Nvidia e 4-5 colossi registrano nuovi massimi mentre l'indice equiponderato lateralizza, siamo in una <b>distribuzione di Wyckoff tardiva</b>.
-                La bolla dell'hardware (SOX/NDX) evidenzia che la domanda di chip sta correndo molto più velocemente dei ritorni economici del software applicativo.
+
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+        <div class="pillar-box" style="border-top-color: #ef4444;">
+            <h4 style="color:#f87171; margin-top:0; font-size:15px;">1. Canale del Debito & Private Credit</h4>
+            <p style="font-size:13px; line-height:1.6; color:#cbd5e1;">
+                Il ratio <b>CCC / High Yield si attesta a {curr_ratio_cred:.2f}x</b>. I fallimenti aziendali non iniziano mai dalle grandi aziende con miliardi in banca, 
+                ma dal mercato dei prestiti privati e dalle aziende con bassi rating. 
+                Se le aziende BDC (BIZD) e i gestori come Blue Owl incontrano difficoltà nei prestiti erogati per i data center e per contratti GPU, 
+                il costo di rifinanziamento salirà repentinamente per l'intera catena industriale.
             </p>
         </div>
-        
-        <div>
-            <h5 style="color:#10b981;">3. Ciclo di Liquidità & Prospettiva Crypto (Benjamin Cowen)</h5>
-            <p style="font-size:13.5px; line-height:1.6; color:#cbd5e1;">
-                Bitcoin e il Nasdaq sono entrambi ostaggio della <b>politica di bilancio della Fed e della liquidità netta</b>. 
-                Il canale di regressione logaritmica evidenzia come Bitcoin stia maturando rendimenti decrescenti tipici di asset istituzionali. 
-                La tenuta della <i>Bull Market Support Band</i> (20W SMA & 21W EMA) funge da discriminante oggettiva tra espansione e capitolazione ciclica, 
-                mentre il rapporto <b>Oro / Nasdaq</b> evidenzia l'inizio di una rotazione verso hard asset come protezione dalla svalutazione debitoria.
+
+        <div class="pillar-box" style="border-top-color: #eab308;">
+            <h4 style="color:#facc15; margin-top:0; font-size:15px;">2. Ampiezza di Mercato & Settore Tech</h4>
+            <p style="font-size:13px; line-height:1.6; color:#cbd5e1;">
+                Confrontando l'indice S&P 500 equiponderato (RSP) con le Mega-Cap, si osserva la concentrazione delle performance. 
+                Quando i massimi dell'indice generale sono sostenuti da una manciata di titoli tech mentre la maggior parte delle aziende resta ferma, 
+                la struttura di mercato diventa fragile. L'hardware (SOX/NDX) guida ancora il ciclo, ma il rendimento effettivo sugli investimenti resta il fattore determinante.
             </p>
-            
-            <h5 style="color:#38bdf8;">4. Conclusione & Asimmetria Operativa (Dove Allocare)</h5>
-            <ul style="font-size:13.5px; line-height:1.6; color:#cbd5e1; margin-left:-15px;">
-                <li><b>Rischio Asimmetrico Negativo:</b> Evitare le small-cap a leva con rating CCC, tech non profittevole e altcoin speculative prive di trazione on-chain reale.</li>
-                <li><b>Resilienza:</b> Le Big Tech con cassa fungono da rifugio temporaneo, ma non sono immuni se il debito periferico congela il capex.</li>
-                <li><b>Hedge Strategico:</b> Oro e liquidità a breve termine (T-Bills) garantiscono optionalità liquida per entrare al picco della disinversione recessionaria.</li>
-            </ul>
         </div>
+
+        <div class="pillar-box" style="border-top-color: #10b981;">
+            <h4 style="color:#34d399; margin-top:0; font-size:15px;">3. Oro, Bitcoin & Liquidità</h4>
+            <p style="font-size:13px; line-height:1.6; color:#cbd5e1;">
+                La forza dell'Oro rispetto agli indici tecnologici riflette la domanda istituzionale di protezione contro la svalutazione monetaria. 
+                Nel comparto criptovalute, Bitcoin si trova all'interno del proprio canale quantitativo storico di medio termine: 
+                la tenuta della media settimanale a medio periodo rappresenta il discrimine tra mercato rialzista strutturale e fase di debolezza macro.
+            </p>
+        </div>
+    </div>
+
+    <div style="margin-top:24px;">
+        <h4 style="color:#f8fafc; font-size:14px; margin-bottom:8px;">Quadro Operativo di Allocazione Strategica</h4>
+        <table class="strategy-table">
+            <thead>
+                <tr>
+                    <th>Classe di Attivo</th>
+                    <th>Stato del Ciclo</th>
+                    <th>Comportamento Consigliato</th>
+                    <th>Fattore Chiave da Monitorare</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><b>Titoli Tecnologici Mega-Cap</b></td>
+                    <td><span style="color:#34d399; font-weight:600;">Stabili / Rifugio</span></td>
+                    <td>Mantenere con posizioni selezionate, proteggere i guadagni senza esporsi eccessivamente alla leva.</td>
+                    <td>Crescita degli investimenti in conto capitale (Capex) rispetto ai ricavi generati.</td>
+                </tr>
+                <tr>
+                    <td><b>Small-Cap & Titoli Altamente Indebitati</b></td>
+                    <td><span style="color:#f87171; font-weight:600;">Alto Rischio</span></td>
+                    <td>Evitare o ridurre l'esposizione verso aziende prive di flussi di cassa operativi positivi.</td>
+                    <td>Allargamento degli spread creditizi e difficoltà di rinnovo delle scadenze di debito.</td>
+                </tr>
+                <tr>
+                    <td><b>Metalli Preziosi (Oro / Beni Rifugio)</b></td>
+                    <td><span style="color:#38bdf8; font-weight:600;">Accumulazione Difensiva</span></td>
+                    <td>Mantenere una quota strategica a portafoglio per assorbire eventuali shock da liquidità o geopolitici.</td>
+                    <td>Rendimento reale dei titoli governativi e andamento del dollaro.</td>
+                </tr>
+                <tr>
+                    <td><b>Bitcoin & Criptovalute</b></td>
+                    <td><span style="color:#facc15; font-weight:600;">Sensibilità alla Liquidità</span></td>
+                    <td>Accumulazione graduale nei pressi della fascia bassa della regressione; prudenza sulle altcoin a bassa liquidità.</td>
+                    <td>Dinamica di bilancio della banca centrale e flussi istituzionali su ETF.</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </div>
-"""
-st.markdown(report_html, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # ==========================================
-# 3. TUTTI I GRAFICI DETTAGLIATI (CATEGORIZZATI)
+# 3. GRAFICI ORGANIZZATI CON GUIDE DIDATTICHE SINGOLE
 # ==========================================
-st.markdown("---")
-st.subheader("📊 Moduli di Analisi Grafica Interattiva")
+st.markdown("### 📊 Analisi Dettagliata dei Grafici")
 
-tab_cred, tab_ai, tab_macro, tab_btc = st.tabs([
-    "💳 1. Mercato del Credito & Junk Debt",
-    "💻 2. Hardware AI, Mag 7 & Ampiezza",
-    "🌍 3. Macro USA, Curva & Oro",
-    "₿ 4. Bitcoin & Canale Cowen"
+tab1, tab2, tab3, tab4 = st.tabs([
+    "💳 Mercato Obbligazionario & Credito",
+    "💻 Settore Tecnologico & AI Capex",
+    "🌍 Indicatori Macro USA & Beni Rifugio",
+    "₿ Bitcoin & Modello di Canale Storico"
 ])
 
-# ----------------- TAB 1: CREDITO -----------------
-with tab_cred:
-    c1, c2 = st.columns(2)
-    with c1:
+# ------------- TAB 1: CREDITO -------------
+with tab1:
+    col_a, col_b = st.columns(2)
+    with col_a:
         if not ccc_spread.empty and not hy_spread.empty:
-            fig_cr = go.Figure()
-            fig_cr.add_trace(go.Scatter(x=hy_spread.index, y=hy_spread["BAMLH0A0HYM2"], name="HY USA Spread (OAS)"))
-            fig_cr.add_trace(go.Scatter(x=ccc_spread.index, y=ccc_spread["BAMLH0A3HYC"], name="CCC & Lower Spread", line=dict(color="#ef4444")))
-            fig_cr.update_layout(title="FRED: Spread Credito High Yield vs CCC & Lower", template="plotly_dark")
-            st.plotly_chart(fig_cr, use_container_width=True)
-            
-    with c2:
+            fig1 = go.Figure()
+            fig1.add_trace(go.Scatter(x=hy_spread.index, y=hy_spread["BAMLH0A0HYM2"], name="Spread High Yield", line=dict(color="#38bdf8")))
+            fig1.add_trace(go.Scatter(x=ccc_spread.index, y=ccc_spread["BAMLH0A3HYC"], name="Spread Titoli CCC (Rischio Alto)", line=dict(color="#ef4444")))
+            fig1.update_layout(title="Spread Obbligazioni USA: High Yield vs Spazzatura CCC", template="plotly_dark", height=380)
+            st.plotly_chart(fig1, use_container_width=True)
+            st.markdown("""
+            <div class="guide-card">
+                <b>📌 Cosa misura:</b> Il tasso di interesse extra che le aziende a rischio devono pagare rispetto ai titoli di stato USA sicuri.<br>
+                <b>🔍 Come interpretarlo:</b> Quando le due linee salgono rapidamente, il mercato rifiuta di prestare denaro alle aziende deboli. Storicamente anticipa i crolli azionari di diversi mesi.
+            </div>
+            """, unsafe_allow_html=True)
+
+    with col_b:
         if not ratio_ccc_hy.empty:
-            fig_r = px.line(ratio_ccc_hy, title="Ratio di Stress Acuto: Spread CCC / High Yield (FRED)", template="plotly_dark")
-            fig_r.update_traces(line_color="#dc2626")
-            st.plotly_chart(fig_r, use_container_width=True)
+            fig2 = px.line(ratio_ccc_hy, title="Rapporto di Stress tra Debito CCC e Debito High Yield", template="plotly_dark", height=380)
+            fig2.update_traces(line_color="#dc2626")
+            st.plotly_chart(fig2, use_container_width=True)
+            st.markdown("""
+            <div class="guide-card">
+                <b>📌 Cosa misura:</b> La pressione specifica scaricata sull'anello più fragile del debito aziendale.<br>
+                <b>🔍 Come interpretarlo:</b> Se questo rapporto supera 3.5x - 4.0x, significa che le aziende più vulnerabili stanno entrando in crisi prima ancora che l'azionario se ne accorga.
+            </div>
+            """, unsafe_allow_html=True)
 
-    c3, c4 = st.columns(2)
-    with c3:
+    col_c, col_d = st.columns(2)
+    with col_c:
         if not bizd.empty:
-            fig_b = px.line(bizd, title="AMEX: BIZD (VanEck BDC - Proxy Private Credit & Leveraged Loans)", template="plotly_dark")
-            st.plotly_chart(fig_b, use_container_width=True)
-    with c4:
+            fig3 = px.line(bizd, title="ETF BIZD: Barometro del Private Credit e Prestiti Aziendali", template="plotly_dark", height=380)
+            fig3.update_traces(line_color="#f59e0b")
+            st.plotly_chart(fig3, use_container_width=True)
+            st.markdown("""
+            <div class="guide-card">
+                <b>📌 Cosa misura:</b> Il valore delle società di sviluppo aziendale (BDC) che concedono prestiti diretti alle medie imprese non quotate.<br>
+                <b>🔍 Come interpretarlo:</b> Un trend discendente prolungato indica difficoltà nei rimborsi dei prestiti privati e contrazione del credito non bancario.
+            </div>
+            """, unsafe_allow_html=True)
+
+    with col_d:
         if not owl.empty:
-            fig_o = px.line(owl, title="NYSE: OWL (Blue Owl Capital - Asset Manager Private Debt AI)", template="plotly_dark")
-            fig_o.update_traces(line_color="#f97316")
-            st.plotly_chart(fig_o, use_container_width=True)
+            fig4 = px.line(owl, title="Blue Owl Capital (OWL): Finanziatore di Data Center & Infrastruttura", template="plotly_dark", height=380)
+            fig4.update_traces(line_color="#a855f7")
+            st.plotly_chart(fig4, use_container_width=True)
+            st.markdown("""
+            <div class="guide-card">
+                <b>📌 Cosa misura:</b> L'andamento di uno dei massimi gestori alternativi di credito privato, ampiamente esposto sui contratti di leasing per data center e cluster di server.<br>
+                <b>🔍 Come interpretarlo:</b> La sua solidità dimostra se i flussi di capitale continuano ad affluire verso le infrastrutture tecnologiche.
+            </div>
+            """, unsafe_allow_html=True)
 
-    st.markdown("""
-    > **Note Monitoraggio Obbligazionario Big Tech & AI Debt (FINRA / OTC):**
-    > - **Oracle Corp Bonds:** FINRA `orcl6185589` (Scadenza 2035) e `orcl6186140` (Scadenza 2065 - Debito a lunghissimo termine per capex cloud).
-    > - **CoreWeave Debt:** FWB `USU2069EAB6` (Senior Secured Notes per finanziamento cluster GPU).
-    > - **Big Tech Duration 2035 & 2060/65:** Alphabet `US02079KAE83` (2060), Amazon `AMZN5087114` (2061), Meta `META5388048` (2063).
-    """)
-
-# ----------------- TAB 2: HARDWARE & AI -----------------
-with tab_ai:
-    c1, c2 = st.columns(2)
-    with c1:
+# ------------- TAB 2: TECH & AI -------------
+with tab2:
+    col_e, col_f = st.columns(2)
+    with col_e:
         if not nvda.empty:
-            fig_n = px.line(nvda, title="NASDAQ: NVDA (Nvidia - Il Cuore Intatto della Cipolla)", template="plotly_dark")
-            fig_n.update_traces(line_color="#10b981")
-            st.plotly_chart(fig_n, use_container_width=True)
-    with c2:
+            fig5 = px.line(nvda, title="Nvidia (NVDA): Il Nucleo Portante del Ciclo Tecnologico", template="plotly_dark", height=380)
+            fig5.update_traces(line_color="#10b981")
+            st.plotly_chart(fig5, use_container_width=True)
+            st.markdown("""
+            <div class="guide-card">
+                <b>📌 Cosa misura:</b> L'azienda cardine su cui si concentrano gli investimenti mondiali per i chip di calcolo accelerato.<br>
+                <b>🔍 Come interpretarlo:</b> Finché Nvidia mantiene minimi crescenti, l'intero comparto tecnologico beneficia dell'effetto traino.
+            </div>
+            """, unsafe_allow_html=True)
+
+    with col_f:
         if not skhynix.empty:
-            fig_sk = px.line(skhynix, title="KRX: 000660.KS (SK Hynix - Monopolio Memorie HBM per GPU)", template="plotly_dark")
-            fig_sk.update_traces(line_color="#84cc16")
-            st.plotly_chart(fig_sk, use_container_width=True)
+            fig6 = px.line(skhynix, title="SK Hynix (000660.KS): Fornitore Monopolista di Memorie HBM", template="plotly_dark", height=380)
+            fig6.update_traces(line_color="#84cc16")
+            st.plotly_chart(fig6, use_container_width=True)
+            st.markdown("""
+            <div class="guide-card">
+                <b>📌 Cosa misura:</b> Il produttore primario dei moduli di memoria ad alta velocità necessari per il funzionamento delle GPU avanzate.<br>
+                <b>🔍 Come interpretarlo:</b> Misura la domanda fisica reale della filiera produttiva. Un rallentamento qui anticipa una flessione negli ordini dei chipmaker.
+            </div>
+            """, unsafe_allow_html=True)
 
-    c3, c4 = st.columns(2)
-    with c3:
+    col_g, col_h = st.columns(2)
+    with col_g:
         if not ratio_sox_ndx.empty:
-            fig_sx = px.line(ratio_sox_ndx, title="Ratio: Semiconduttori vs Nasdaq 100 (^SOX / ^NDX)", template="plotly_dark")
-            fig_sx.update_traces(line_color="#f59e0b")
-            st.plotly_chart(fig_sx, use_container_width=True)
-    with c4:
+            fig7 = px.line(ratio_sox_ndx, title="Rapporto Semiconduttori / Nasdaq 100 (^SOX / ^NDX)", template="plotly_dark", height=380)
+            fig7.update_traces(line_color="#38bdf8")
+            st.plotly_chart(fig7, use_container_width=True)
+            st.markdown("""
+            <div class="guide-card">
+                <b>📌 Cosa misura:</b> La forza relativa dei produttori di chip rispetto a tutte le altre aziende tecnologiche e del software.<br>
+                <b>🔍 Come interpretarlo:</b> Quando sale, l'hardware sovraperforma il resto del mercato. Picchi estremi segnalano fasi di euforia speculativa sui produttori fisici.
+            </div>
+            """, unsafe_allow_html=True)
+
+    with col_h:
         if not rsp.empty and not mags.empty:
-            fig_amp = go.Figure()
-            fig_amp.add_trace(go.Scatter(x=rsp.index, y=rsp["RSP"] / rsp["RSP"].iloc[0] * 100, name="RSP (Equal Weight)"))
-            fig_amp.add_trace(go.Scatter(x=mags.index, y=mags["MAGS"] / mags["MAGS"].iloc[0] * 100, name="MAGS (Mag 7 ETF)", line=dict(color="#38bdf8")))
-            fig_amp.update_layout(title="Ampiezza di Mercato: RSP (Equal Weight) vs MAGS (Mag 7 ETF) Normalizzati", template="plotly_dark")
-            st.plotly_chart(fig_amp, use_container_width=True)
+            fig8 = go.Figure()
+            fig8.add_trace(go.Scatter(x=rsp.index, y=rsp["RSP"] / rsp["RSP"].iloc[0] * 100, name="S&P 500 Equal Weight (RSP)", line=dict(color="#94a3b8")))
+            fig8.add_trace(go.Scatter(x=mags.index, y=mags["MAGS"] / mags["MAGS"].iloc[0] * 100, name="Mega-Cap Mag 7 (MAGS)", line=dict(color="#f43f5e")))
+            fig8.update_layout(title="Ampiezza di Mercato: Titoli Ordinari (RSP) vs Giganti Tech (MAGS)", template="plotly_dark", height=380)
+            st.plotly_chart(fig8, use_container_width=True)
+            st.markdown("""
+            <div class="guide-card">
+                <b>📌 Cosa misura:</b> Confronta l'andamento delle 500 aziende americane equiponderate contro i 7 colossi tecnologici a maggior capitalizzazione.<br>
+                <b>🔍 Come interpretarlo:</b> Se la linea rossa sale molto più della linea grigia, significa che il mercato è tenuto su da pochissime azioni. È una divergenza tipica dei massimi di fine ciclo.
+            </div>
+            """, unsafe_allow_html=True)
 
-# ----------------- TAB 3: MACRO & ORO -----------------
-with tab_macro:
-    c1, c2 = st.columns(2)
-    with c1:
+# ------------- TAB 3: MACRO & BENI RIFUGIO -------------
+with tab3:
+    col_i, col_l = st.columns(2)
+    with col_i:
         if not unrate.empty and not sahm.empty:
-            fig_m = go.Figure()
-            fig_m.add_trace(go.Scatter(x=unrate.index, y=unrate["UNRATE"], name="Tasso Disoccupazione (%)", line=dict(color="#94a3b8")))
-            fig_m.add_trace(go.Scatter(x=sahm.index, y=sahm["SAHMREALTIME"], name="Sahm Rule Recession Indicator", line=dict(color="#ef4444", width=2)))
-            fig_m.add_hline(y=0.5, line_dash="dash", line_color="red", annotation_text="Soglia Recessione Sahm (0.50)")
-            fig_m.update_layout(title="Disoccupazione USA & Trigger Recessionario Sahm Rule (FRED)", template="plotly_dark")
-            st.plotly_chart(fig_m, use_container_width=True)
-    with c2:
+            fig9 = go.Figure()
+            fig9.add_trace(go.Scatter(x=unrate.index, y=unrate["UNRATE"], name="Tasso Disoccupazione (%)", line=dict(color="#94a3b8")))
+            fig9.add_trace(go.Scatter(x=sahm.index, y=sahm["SAHMREALTIME"], name="Regola di Sahm", line=dict(color="#ef4444", width=2)))
+            fig9.add_hline(y=0.5, line_dash="dash", line_color="red", annotation_text="Soglia Allarme (0.50)")
+            fig9.update_layout(title="Dinamica della Disoccupazione USA & Trigger Recessionario", template="plotly_dark", height=380)
+            st.plotly_chart(fig9, use_container_width=True)
+            st.markdown("""
+            <div class="guide-card">
+                <b>📌 Cosa misura:</b> La salute del mercato del lavoro statunitense e la rapidità dei licenziamenti aggregati.<br>
+                <b>🔍 Come interpretarlo:</b> Quando la linea rossa supera quota 0.50, scatta il segnale oggettivo di recessione economica con conseguente impatto sugli utili aziendali.
+            </div>
+            """, unsafe_allow_html=True)
+
+    with col_l:
         if not t10y2y.empty:
-            fig_c = px.line(t10y2y, title="Curva dei Rendimenti USA: 10 Anni - 2 Anni (T10Y2Y)", template="plotly_dark")
-            fig_c.add_hline(y=0.0, line_dash="dash", line_color="white")
-            fig_c.update_traces(line_color="#38bdf8")
-            st.plotly_chart(fig_c, use_container_width=True)
+            fig10 = px.line(t10y2y, title="Differenziale dei Tassi USA a 10 Anni vs 2 Anni", template="plotly_dark", height=380)
+            fig10.add_hline(y=0.0, line_dash="dash", line_color="white")
+            fig10.update_traces(line_color="#06b6d4")
+            st.plotly_chart(fig10, use_container_width=True)
+            st.markdown("""
+            <div class="guide-card">
+                <b>📌 Cosa misura:</b> La pendenza della curva governativa dei tassi USA.<br>
+                <b>🔍 Come interpretarlo:</b> L'inversione sottozero preavvisa il rallentamento; la disinversione che riporta il valore sopra lo zero coincide storicamente con l'inizio della fase di correzione sui listini azionari.
+            </div>
+            """, unsafe_allow_html=True)
 
-    c3, c4 = st.columns(2)
-    with c3:
+    col_m, col_n = st.columns(2)
+    with col_m:
         if not vix.empty:
-            fig_vx = px.line(vix, title="CBOE: VIX Volatility Index (^VIX)", template="plotly_dark")
-            fig_vx.add_hline(y=20, line_dash="dot", line_color="orange")
-            fig_vx.add_hline(y=30, line_dash="dash", line_color="red")
-            fig_vx.update_traces(line_color="#f43f5e")
-            st.plotly_chart(fig_vx, use_container_width=True)
-    with c4:
-        if not ratio_gold_ndx.empty:
-            fig_g = px.line(ratio_gold_ndx, title="Ratio: Oro / Nasdaq 100 (Hard Asset vs Tech)", template="plotly_dark")
-            fig_g.update_traces(line_color="#eab308")
-            st.plotly_chart(fig_g, use_container_width=True)
+            fig11 = px.line(vix, title="Indice della Paura VIX: Volatilità delle Opzioni S&P 500", template="plotly_dark", height=380)
+            fig11.add_hline(y=20, line_dash="dot", line_color="orange")
+            fig11.add_hline(y=30, line_dash="dash", line_color="red")
+            fig11.update_traces(line_color="#f43f5e")
+            st.plotly_chart(fig11, use_container_width=True)
+            st.markdown("""
+            <div class="guide-card">
+                <b>📌 Cosa misura:</b> Il costo per assicurarsi contro improvvisi crolli sul mercato azionario americano a 30 giorni.<br>
+                <b>🔍 Come interpretarlo:</b> Sotto 15 regna la calma e la compiacenza; tra 20 e 30 aumentano le vendite; sopra 30 si è nel mezzo di uno scarico da panico.
+            </div>
+            """, unsafe_allow_html=True)
 
-# ----------------- TAB 4: BITCOIN COWEN CHANNEL -----------------
-with tab_btc:
+    with col_n:
+        if not ratio_gold_ndx.empty:
+            fig12 = px.line(ratio_gold_ndx, title="Rapporto Oro / Nasdaq 100: Riserva di Valore vs Crescita Tech", template="plotly_dark", height=380)
+            fig12.update_traces(line_color="#eab308")
+            st.plotly_chart(fig12, use_container_width=True)
+            st.markdown("""
+            <div class="guide-card">
+                <b>📌 Cosa misura:</b> La preferenza degli investitori globali tra beni fisici non svalutabili (Oro) e azioni speculative di crescita (Tech).<br>
+                <b>🔍 Come interpretarlo:</b> Quando questo rapporto si alza, i grandi capitali stanno fuggendo verso la sicurezza per proteggersi da incertezza o svalutazione monetaria.
+            </div>
+            """, unsafe_allow_html=True)
+
+# ------------- TAB 4: BITCOIN -------------
+with tab4:
     if not btc.empty:
         df_btc = btc.copy()
         
-        # Bull Market Support Band (Cowen: 20-week SMA & 21-week EMA)
-        # 20 settimane = 140 giorni, 21 settimane = 147 giorni
+        # Medie Mobili Chiave a Medio Termine (20 e 21 Settimane)
         df_btc["SMA_20W"] = df_btc["BTC-USD"].rolling(window=140).mean()
         df_btc["EMA_21W"] = df_btc["BTC-USD"].ewm(span=147, adjust=False).mean()
         
-        # Canale di Regressione Logaritmica
-        x_days = np.arange(1, len(df_btc) + 1)
-        log_x = np.log(x_days)
+        # Regressione Logaritmica
+        x_d = np.arange(1, len(df_btc) + 1)
+        log_x = np.log(x_d)
         log_y = np.log(df_btc["BTC-USD"].values)
         poly = np.polyfit(log_x, log_y, 1)
-        fit_log = poly[0] * log_x + poly[1]
+        fit_l = poly[0] * log_x + poly[1]
         
-        df_btc["Fit_Regression"] = np.exp(fit_log)
-        std_dev = np.std(log_y - fit_log)
-        df_btc["Upper_Band"] = np.exp(fit_log + 1.25 * std_dev)
-        df_btc["Lower_Band"] = np.exp(fit_log - 1.25 * std_dev)
+        df_btc["Canale_Centrale"] = np.exp(fit_l)
+        std_d = np.std(log_y - fit_l)
+        df_btc["Canale_Superiore"] = np.exp(fit_l + 1.25 * std_d)
+        df_btc["Canale_Inferiore"] = np.exp(fit_l - 1.25 * std_d)
 
-        fig_btc = go.Figure()
-        
-        # Prezzo BTC
-        fig_btc.add_trace(go.Scatter(x=df_btc.index, y=df_btc["BTC-USD"], name="BTC Prezzo USD", line=dict(color="#f8fafc", width=1.5)))
-        
-        # Bull Market Support Band
-        fig_btc.add_trace(go.Scatter(x=df_btc.index, y=df_btc["SMA_20W"], name="20-Week SMA", line=dict(color="#10b981", width=1.5)))
-        fig_btc.add_trace(go.Scatter(x=df_btc.index, y=df_btc["EMA_21W"], name="21-Week EMA", line=dict(color="#06b6d4", width=1.5)))
-        
-        # Regression Bands (Cowen)
-        fig_btc.add_trace(go.Scatter(x=df_btc.index, y=df_btc["Upper_Band"], name="Canale Superiore (Overheated)", line=dict(color="#ef4444", dash="dash")))
-        fig_btc.add_trace(go.Scatter(x=df_btc.index, y=df_btc["Fit_Regression"], name="Regressione Log Media", line=dict(color="#eab308", dash="dot")))
-        fig_btc.add_trace(go.Scatter(x=df_btc.index, y=df_btc["Lower_Band"], name="Canale Inferiore (Accumulo)", line=dict(color="#22c55e", dash="dash")))
+        fig13 = go.Figure()
+        fig13.add_trace(go.Scatter(x=df_btc.index, y=df_btc["BTC-USD"], name="Prezzo Bitcoin ($)", line=dict(color="#f8fafc", width=1.5)))
+        fig13.add_trace(go.Scatter(x=df_btc.index, y=df_btc["SMA_20W"], name="Media Mobile 20 Settimane", line=dict(color="#10b981", width=1.3)))
+        fig13.add_trace(go.Scatter(x=df_btc.index, y=df_btc["EMA_21W"], name="Media Esponenziale 21 Settimane", line=dict(color="#06b6d4", width=1.3)))
+        fig13.add_trace(go.Scatter(x=df_btc.index, y=df_btc["Canale_Superiore"], name="Banda Alta (Fase Euforica)", line=dict(color="#ef4444", dash="dash")))
+        fig13.add_trace(go.Scatter(x=df_btc.index, y=df_btc["Canale_Centrale"], name="Valore Equo Storico", line=dict(color="#eab308", dash="dot")))
+        fig13.add_trace(go.Scatter(x=df_btc.index, y=df_btc["Canale_Inferiore"], name="Banda Bassa (Accumulazione)", line=dict(color="#22c55e", dash="dash")))
 
-        fig_btc.update_yaxes(type="log", title="Prezzo BTC (Scala Logaritmica)")
-        fig_btc.update_layout(
-            title="Bitcoin: Canale di Regressione Logaritmica & Bull Market Support Band (Metodologia Benjamin Cowen)",
+        fig13.update_yaxes(type="log", title="Prezzo BTC (Scala Logaritmica)")
+        fig13.update_layout(
+            title="Bitcoin: Canale Quantitativo di Regressione Logaritmica & Fasce di Supporto Settimanale",
             template="plotly_dark",
-            height=600
+            height=580
         )
-        st.plotly_chart(fig_btc, use_container_width=True)
-        st.caption("La Bull Market Support Band (20W SMA / 21W EMA) identifica se il mercato è in espansione sopra le medie o in bear market strutturale sotto di esse.")
+        st.plotly_chart(fig13, use_container_width=True)
+        st.markdown("""
+        <div class="guide-card">
+            <b>📌 Cosa misura:</b> L'andamento di Bitcoin all'interno del suo canale storico di lungo periodo, depurato dall'iper-volatilità iniziale.<br>
+            <b>🔍 Come interpretarlo:</b><br>
+            • <b>Fascia tra le due medie verdi/azzurre (20W SMA & 21W EMA):</b> Se il prezzo è sopra, il trend rialzista è intatto. Se il prezzo rompe al ribasso queste medie, inizia una fase di debolezza ciclica prolungata.<br>
+            • <b>Banda Verde Inferiore:</b> Area storica di massimo sconto e accumulo di lungo termine.<br>
+            • <b>Banda Rossa Superiore:</b> Area di euforia speculativa e massimi ciclici, dove è opportuno prendere profitto.
+        </div>
+        """, unsafe_allow_html=True)
